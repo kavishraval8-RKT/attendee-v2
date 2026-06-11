@@ -22,7 +22,8 @@ const corsOptions = {
     'https://attendee.xrocketry.in',
     'http://localhost:5173',
     'http://localhost:3000',
-    'http://localhost'
+    'http://localhost',
+    'https://attendee-v2.vercel.app/login'
   
   ],
   credentials: true,
