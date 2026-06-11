@@ -23,7 +23,7 @@ const corsOptions = {
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost',
-    'https://attendee-v2.vercel.app/login'
+    'https://attendee-v2.vercel.app'
   
   ],
   credentials: true,
