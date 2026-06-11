@@ -811,15 +811,12 @@ void processOnlineAttendance(String rfidTag, String timestamp) {
   bool isHTTPS = effectiveUrl.startsWith("https://");
   
   if (isHTTPS) {
-    // Configure WiFiClientSecure for HTTPS with aggressive speed optimizations
-    wifiClientSecure.setInsecure(); // Skip SSL certificate verification for testing
-    wifiClientSecure.setTimeout(5000); // Reduced timeout for faster failure detection
+    wifiClientSecure.setInsecure(); 
+    wifiClientSecure.setTimeout(15000); // Increased to 15 seconds for slow SSL handshakes
     
-    // Aggressive optimization for ESP8266 HTTPS performance
-    wifiClientSecure.setBufferSizes(512, 512); // Minimal buffers for fastest processing
+    // REMOVED: setBufferSizes (Let the ESP8266 use default 4KB buffer for the large Render certificates)
     
-    // Network optimizations for lower latency
-    wifiClientSecure.setNoDelay(true); // Disable Nagle's algorithm for lower latency
+    wifiClientSecure.setNoDelay(true);
     
     Serial.println("Using HTTPS connection with speed optimizations");
     Serial.println("Free heap before HTTPS: " + String(ESP.getFreeHeap()));
@@ -844,7 +841,7 @@ void processOnlineAttendance(String rfidTag, String timestamp) {
   
   http.addHeader("Content-Type", "application/json");
   http.addHeader("User-Agent", "ESP8266-Attendance-Terminal/2.0");
-  http.setTimeout(5000); // Reduced HTTP timeout for faster response
+  http.setTimeout(15000); // Reduced HTTP timeout for faster response
   
   // Create JSON payload
   StaticJsonDocument<200> doc;
@@ -927,57 +924,54 @@ void processOnlineAttendance(String rfidTag, String timestamp) {
 }
 
 void handleSuccessfulAttendance(String response, String timestamp) {
-  Serial.println("Processing successful response: " + response);
-  
-  DynamicJsonDocument responseDoc(2048);
-  DeserializationError error = deserializeJson(responseDoc, response);
-  
+  // 1. We keep the print, but move it to its own line to save RAM
+  Serial.println("Processing successful response:");
+  Serial.println(response);
+
+  // 2. Define a Filter to grab ONLY the data we need.
+  // This tells the parser to discard everything else immediately.
+  StaticJsonDocument<256> filter;
+  filter["message"] = true;
+  filter["type"] = true;
+  filter["attendance"]["userName"] = true;
+
+  // 3. Use the Filter while deserializing
+  StaticJsonDocument<512> responseDoc;
+  DeserializationError error = deserializeJson(responseDoc, response, DeserializationOption::Filter(filter));
+
   if (error) {
     Serial.println("JSON parsing error: " + String(error.c_str()));
     handleAttendanceError("JSON parse error: " + String(error.c_str()));
     return;
   }
-  
-  if (responseDoc["message"]) {
-    String message = responseDoc["message"].as<String>();
-    String attendanceType = responseDoc["type"] | "unknown";
-    
-    // Extract user name
-    String userName = "Unknown";
-    if (responseDoc["attendance"]["userName"]) {
-      userName = responseDoc["attendance"]["userName"].as<String>();
-    }
-    
-    // Update display based on attendance type
-    lastScannedName = userName;
-    lastScannedTime = timestamp.substring(11, 16);  // Extract time HH:MM
-    
-    if (attendanceType == "entry") {
-      lastScannedMessage = "Entry logged";
-      setLEDState(LED_GREEN);
-      playSuccessBeep();
-      logInfo("Entry: " + userName);
-    } else if (attendanceType == "exit") {
-      lastScannedMessage = "Exit logged";
-      setLEDState(LED_GREEN);
-      playSuccessBeep();
-      logInfo("Exit: " + userName);
-    } else if (attendanceType == "complete") {
-      lastScannedMessage = "Already logged";
-      setLEDState(LED_YELLOW);
-      playDuplicateBeep();      // Use specific duplicate beep pattern
-      logInfo("Already complete: " + userName);
-    } else {
-      lastScannedMessage = "Attendance OK";
-      setLEDState(LED_GREEN);
-      playSuccessBeep();
-      logInfo("Attendance: " + userName);
-    }
-    
-    ledBlinkTimer = millis();
+
+  // 4. Extract data from the filtered responseDoc
+  String message = responseDoc["message"].as<String>();
+  String attendanceType = responseDoc["type"] | "unknown";
+  String userName = responseDoc["attendance"]["userName"] | "Unknown";
+
+  // 5. Update display based on attendance type
+  lastScannedName = userName;
+  lastScannedTime = timestamp.substring(11, 16); // Extract time HH:MM
+
+  if (attendanceType == "entry" || attendanceType == "exit") {
+    lastScannedMessage = (attendanceType == "entry") ? "Entry logged" : "Exit logged";
+    setLEDState(LED_GREEN);
+    playSuccessBeep();
+    logInfo(attendanceType + ": " + userName);
+  } else if (attendanceType == "complete") {
+    lastScannedMessage = "Already logged";
+    setLEDState(LED_YELLOW);
+    playDuplicateBeep();
+    logInfo("Already complete: " + userName);
   } else {
-    handleAttendanceError("Unknown response format");
+    lastScannedMessage = "Attendance OK";
+    setLEDState(LED_GREEN);
+    playSuccessBeep();
+    logInfo("Attendance: " + userName);
   }
+
+  ledBlinkTimer = millis();
 }
 
 void handleBadRequestAttendance(String response) {
@@ -2210,8 +2204,8 @@ bool testHTTPSConnection(String url) {
   Serial.println("Testing HTTPS connection to: " + url);
   
   wifiClientSecure.setInsecure();
-  wifiClientSecure.setTimeout(10000);
-  wifiClientSecure.setBufferSizes(512, 512);
+  wifiClientSecure.setTimeout(15000);
+  // REMOVED setBufferSizes
   
   HTTPClient testHttp;
   if (!testHttp.begin(wifiClientSecure, url)) {
@@ -2261,9 +2255,9 @@ void warmupHTTPSConnection() {
   Serial.println("Warming up HTTPS connection...");
   
   // Configure SSL client with same optimizations
-  wifiClientSecure.setInsecure();
-  wifiClientSecure.setTimeout(3000); // Short timeout for warmup
-  wifiClientSecure.setBufferSizes(512, 512);
+ wifiClientSecure.setInsecure();
+  wifiClientSecure.setTimeout(15000); 
+  // REMOVED setBufferSizes
   wifiClientSecure.setNoDelay(true);
   
   HTTPClient warmupHttp;
