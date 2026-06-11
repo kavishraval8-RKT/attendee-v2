@@ -929,7 +929,7 @@ void processOnlineAttendance(String rfidTag, String timestamp) {
 void handleSuccessfulAttendance(String response, String timestamp) {
   Serial.println("Processing successful response: " + response);
   
-  StaticJsonDocument<400> responseDoc;
+  DynamicJsonDocument responseDoc(2048);
   DeserializationError error = deserializeJson(responseDoc, response);
   
   if (error) {

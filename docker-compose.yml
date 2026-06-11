@@ -1,0 +1,53 @@
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: attendee_mongodb
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - attendee_network
+
+  backend:
+    build: ./backend
+    container_name: attendee_backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/attendance_system
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=7d
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_NAME=${ADMIN_NAME}
+      - ADMIN_RFID=${ADMIN_RFID}
+      - BCRYPT_ROUNDS=12
+    depends_on:
+      - mongodb
+    networks:
+      - attendee_network
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_URL=http://localhost:5000
+    container_name: attendee_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - attendee_network
+
+volumes:
+  mongodb_data:
+
+networks:
+  attendee_network:
+    driver: bridge

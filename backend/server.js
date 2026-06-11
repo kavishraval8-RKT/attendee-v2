@@ -20,8 +20,10 @@ const PORT = process.env.PORT || 3000;
 const corsOptions = {
   origin: [
     'https://attendee.xrocketry.in',
-    'http://localhost:5173', // For local development
-    'http://localhost:3000'  // For local testing
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost'
+  
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

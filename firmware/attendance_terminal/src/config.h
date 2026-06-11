@@ -60,12 +60,12 @@
 // ========================================
 
 // Default backend server URL (can be changed via configuration)
-// #define DEFAULT_BACKEND_URL "http://192.168.1.10:3000"
-#define DEFAULT_BACKEND_URL "https://api.xrocketry.in/"
+ #define DEFAULT_BACKEND_URL "http://192.168.31.22:5000"
+//#define DEFAULT_BACKEND_URL "https://api.xrocketry.in/"
 
 // WiFi Configuration Portal settings
 // Reduce portal timeout so device continues offline quickly when unattended
-#define WIFI_CONFIG_PORTAL_TIMEOUT 10   // seconds (skip config after 10s)
+#define WIFI_CONFIG_PORTAL_TIMEOUT 180   // seconds (skip config after 10s)
 #define WIFI_RECONNECT_TIMEOUT 30       // 30 seconds
 // Periodic reconnect to WiFi to try syncing offline logs
 #define WIFI_PERIODIC_RECONNECT_INTERVAL (2UL*60UL*60UL*1000UL) // 2 hours in ms
