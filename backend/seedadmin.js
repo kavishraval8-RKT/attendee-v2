@@ -20,7 +20,7 @@ async function seedAdmin() {
       name: 'Admin User',
       email: 'admin@launchlog.com',
       password: 'admin123456', // The User model will automatically encrypt this!
-      rfid: 'BBAD9002',
+      rfidTag: 'BBAD9002',
       role: 'admin'
     });
 
