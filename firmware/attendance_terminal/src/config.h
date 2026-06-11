@@ -60,7 +60,7 @@
 // ========================================
 
 // Default backend server URL (can be changed via configuration)
- #define DEFAULT_BACKEND_URL "http://192.168.31.22:5000"
+ #define DEFAULT_BACKEND_URL "https://attendee-backend-huut.onrender.com"
 //#define DEFAULT_BACKEND_URL "https://api.xrocketry.in/"
 
 // WiFi Configuration Portal settings
