@@ -300,13 +300,13 @@ const UserDetail = () => {
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <div>
                       <div className="text-sm text-black">Check-in</div>
-                      <div className="text-xs text-gray-400">Record ID: {record._id.slice(-8)}</div>
+                      <div className="text-xs text-gray-400">Record ID: {record?._id?.slice(-8) || 'N/A'}</div>
                     </div>
                   </div>
                   
                   <div className="text-right">
                     <div className="text-sm text-black">
-                      {formatTime(record.timestamp)}
+                      {record?.timestamp ? formatTime(record.timestamp) : 'N/A'}
                     </div>
                     <div className="text-xs text-gray-400 tracking-wider uppercase">
                       {formatDate(record.timestamp)}

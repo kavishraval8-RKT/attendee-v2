@@ -798,91 +798,75 @@ void handleRFIDScan() {
 // ========================================
 
 void processOnlineAttendance(String rfidTag, String timestamp) {
-  Serial.println("Backend URL: " + backendUrl);
+  Serial.println(F("Connecting to secure backend..."));
+
   String attendanceUrl = getAttendanceEndpointUrl();
-  Serial.println("Full attendance URL: " + attendanceUrl);
 
-  // ── Force a secure, clean connection ──────────────────────────────
-  // Use WiFiClientSecure for HTTPS and setInsecure to skip cert validation
   WiFiClientSecure secureClient;
-  secureClient.setInsecure(); 
-  secureClient.setNoDelay(true);
-  secureClient.setBufferSizes(512, 512);
+  secureClient.setInsecure();
+  secureClient.setBufferSizes(2048, 1024);
+  secureClient.setTimeout(20000);
 
-  // Reset HTTP client state
-  http.end(); 
-  http.setReuse(false);          // Never reuse connection to avoid stale sessions
-  http.setTimeout(8000);         // 8-second hard timeout
+  HTTPClient http;
+  http.setTimeout(20000);
+  http.setReuse(false);
+
+  yield();
 
   if (!http.begin(secureClient, attendanceUrl)) {
-    handleAttendanceError("HTTP init failed");
+    Serial.println(F("HTTP init failed"));
+    processOfflineAttendance(rfidTag, timestamp);
     return;
   }
 
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Connection", "close"); 
+  http.addHeader("Connection", "close");
   http.addHeader("User-Agent", "ESP8266-Attendance-Terminal/2.0");
 
-  // ── Build payload ────────────────────────────────────────────────
-  StaticJsonDocument<200> doc;
+  StaticJsonDocument<192> doc;
   doc["rfidTag"]   = rfidTag;
   doc["timestamp"] = timestamp;
   doc["deviceId"]  = deviceId;
   doc["firmware"]  = FIRMWARE_VERSION;
 
-  String payload;
-  serializeJson(doc, payload);
+  size_t n = measureJson(doc);
+  char buffer[n + 1];
+  serializeJson(doc, buffer, sizeof(buffer));
 
-  // ── Send request ─────────────────────────────────────────────────
-  Serial.println("Sending attendance: " + payload);
-  lastScannedName    = "Sending...";
-  lastScannedMessage = "Please wait";
-  updateDisplay();
-  playProcessingBeep();
-
-  unsigned long requestStart = millis();
-  int httpCode = http.POST(payload);
-  unsigned long requestTime = millis() - requestStart;
+  Serial.println(F("Sending..."));
+  yield();
+  int httpCode = http.POST((uint8_t*)buffer, n);
+  yield();
 
   Serial.println("HTTP Response Code: " + String(httpCode));
-  Serial.println("Request time: " + String(requestTime) + "ms");
-
-  // ── Validate response ─────────────────────────────────────────────
-  if (httpCode <= 0) {
-    http.end();
-    Serial.println("Connection error: " + String(httpCode));
-    handleAttendanceError("Connection failed");
-    processOfflineAttendance(rfidTag, timestamp);
-    return;
-  }
-
-  String response = http.getString();
-  http.end(); // Always close immediately after reading
-
-  Serial.println("Response body: " + response);
   Serial.println("Free heap: " + String(ESP.getFreeHeap()));
 
-  // ── Logic Dispatcher ──────────────────────────────────────────────
-  if (httpCode == 200 || httpCode == 201) {
-    // Only parse if it looks like JSON (starts with '{') to prevent InvalidInput crash
-    if (response.length() > 0 && response.startsWith("{")) {
-      handleSuccessfulAttendance(response, timestamp);
-    } else {
-      Serial.println("Server returned empty or non-JSON body");
-      handleAttendanceError("Invalid response format");
-      processOfflineAttendance(rfidTag, timestamp);
-    }
-  } else if (httpCode == 400) {
-    handleBadRequestAttendance(response);
-  } else {
-    Serial.println("HTTP Error: " + String(httpCode));
-    handleAttendanceError("HTTP " + String(httpCode));
-    if (httpCode >= 500) {
-      processOfflineAttendance(rfidTag, timestamp);
-    }
-  }
-}
+  if (httpCode > 0) {
+    String response = http.getString();
 
+    if (response.length() > 0 && response.startsWith("{")) {
+      if (httpCode == 200 || httpCode == 201) {
+        handleSuccessfulAttendance(response, timestamp);
+      } else if (httpCode == 400) {
+        handleBadRequestAttendance(response);
+      } else {
+        Serial.println("HTTP Error: " + String(httpCode));
+        handleAttendanceError("HTTP " + String(httpCode));
+        processOfflineAttendance(rfidTag, timestamp);
+      }
+    } else {
+      Serial.println(F("Non-JSON or empty response"));
+      handleAttendanceError("Empty response");
+      processOfflineAttendance(rfidTag, timestamp);
+    }
+  } else {
+    Serial.println("Connection error: " + String(httpCode));
+    handleAttendanceError("Connection failed: " + String(httpCode));
+    processOfflineAttendance(rfidTag, timestamp);
+  }
+
+  http.end();
+}
 void handleSuccessfulAttendance(String response, String timestamp) {
   
   // 1. We keep the print, but move it to its own line to save RAM
@@ -2214,34 +2198,30 @@ void processOnlineAttendanceWithFallback(String rfidTag, String timestamp) {
 
 void warmupHTTPSConnection() {
   Serial.println("Warming up HTTPS connection...");
-  
-  // Configure SSL client with same optimizations
- wifiClientSecure.setInsecure();
-  wifiClientSecure.setTimeout(15000); 
-  // REMOVED setBufferSizes
-  wifiClientSecure.setNoDelay(true);
-  
+
+  WiFiClientSecure warmupClient;
+  warmupClient.setInsecure();
+  warmupClient.setBufferSizes(1024, 512);
+  warmupClient.setTimeout(8000);
+
   HTTPClient warmupHttp;
   unsigned long warmupStart = millis();
-  
-  if (warmupHttp.begin(wifiClientSecure, getEffectiveBackendUrl() + "/health")) {
-    warmupHttp.setTimeout(3000);
-    
+
+  if (warmupHttp.begin(warmupClient, getEffectiveBackendUrl() + "/health")) {
+    warmupHttp.setTimeout(8000);
     int responseCode = warmupHttp.GET();
     unsigned long warmupTime = millis() - warmupStart;
-    
+
     if (responseCode > 0) {
-      // Mark session as established for reuse
-      sslSessionValid = true;
-      Serial.println("HTTPS warmup successful: " + String(warmupTime) + "ms (session established)");
+      Serial.println("HTTPS warmup successful: " + String(warmupTime) + "ms");
     } else {
       Serial.println("HTTPS warmup failed: " + String(responseCode));
     }
-    
+
     warmupHttp.end();
   } else {
     Serial.println("HTTPS warmup connection failed");
   }
-  }
+}
   
 
